@@ -1,4 +1,5 @@
-function [W, Q, D, G, c, coef_f_q_sym, coef_J_pure, coefs_tq, pinvG] = pTop_WQDGc_new(r, b, nv)
+function [W, Q, D, G, c, coef_f_q_sym, coef_J_pure, coefs_tq, pinvG] = ...
+  pTop_WQDGc_new(r, b, nv)
 len = size(r, 1);
 coef_J_pure = zeros(1, 85);
 for i = 1 : len

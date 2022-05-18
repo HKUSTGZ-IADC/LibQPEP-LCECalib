@@ -37,6 +37,7 @@ addpath('solvers');
 addpath('utils');
 addpath('homotopy');
 
+% ground truth
 R0 = angle2dcm(-8 * pi / 180, 12 * pi / 180, -15 * pi / 180, 'XYZ');
 q0 = dcm2quat(R0).';
 if(q0(1) < 0)
@@ -63,8 +64,6 @@ plat = [
      0.0707106781186548, 1, -0.0707106781186548;
     ].';
 
-
-
 conv = [
     1, 0, 0;
     0, 0, 1;
@@ -77,8 +76,7 @@ plat(3, :) = plat(3, :) + height;
 plat00 = plat;
 base00 = base;
 
-
-
+%% generate test data (with ground truth)
 leg0 = zeros(6, 1);
 plat0 = zeros(3, 6);
 for i = 1 : 6
@@ -106,7 +104,6 @@ grid on
 grid minor
 title('Reference Result', 'Interpreter', 'LaTeX', 'FontSize', 14);
 
-
 base_ = base.';
 plat_ = plat.';
 counter = 1;
@@ -128,7 +125,6 @@ base = base.';
 plat = plat.';
 len = size(base, 2);
 
-
 leg0 = zeros(len, 1);
 plat0 = zeros(3, len);
 for i = 1 : len
@@ -137,7 +133,9 @@ for i = 1 : len
     leg0(i) = sqrt(res.' * res);
 end
 
+%% main program of QPEP 
 
+% step 1: add symbolic variables
 syms q0 q1 q2 q3
 q = [q0; q1; q2; q3];
 syms t1 t2 t3;
@@ -151,17 +149,18 @@ for i = 1 : len
     eqs(i) = base(:, i).' * base(:, i) - 2 * plat(:, i).' * R.' * base(:, i) + ...
              plat(:, i).' * plat(:, i) - 2 * base(:, i).' * t + 2 * plat(:, i).' * rr + r4 - leg0(i)^2;
 end
-eqs(len + 1) = q.' * q - 1;
+eqs(len + 1) = q.' * q - 1;     % Lagrangian equality
 eqs(len + 2) = rr.' * rr - r4;
 eqs(len + 3) = t.' * t - r4;
 eqs = expand(eqs);
-x = [q; t; r];
+x = [q; t; r];  % variable to be estimated
 H = expand(jacobian(eqs, x).' * eqs);
-assumeAlso(q.' * q == 1);
-assumeAlso(rr.' * rr - r4 == 0);
-assumeAlso(t.' * t - r4 == 0);
-eq = vpa(expand(simplify(H)), 32);
+assumeAlso(q.' * q == 1);  % add symbolic assumption.
+assumeAlso(rr.' * rr - r4 == 0);  % add symbolic assumption.
+assumeAlso(t.' * t - r4 == 0);  % add symbolic assumption.
+eq = vpa(expand(simplify(H)), 32);  % use 32 digits
 
+% step 2: formulate the problem and solve it
 eq_ = eq(1 : 4);
 G = jacobian(eq(5 : 11), [t; r]);
 ss = - pinv(G) * (eq(5 : 11) - G * [t; r]);
@@ -200,9 +199,9 @@ str_ = sprintf(str, char(eqs(1)), ...
                     char(eqs(4)), ...
                     char(eqs(5)));
 eval(str_);
-[S, vars] = psolve(PP);
+[S, vars] = psolve(PP);  % Numerical solution of polynomial systems by homotopy method 
 S = S.';
-SS = S;
+SS = S;  % Sylvester matrix?
 for i = 1 : length(vars)
     if(strcmp(vars{i}, 'q0'))
         SS(:, 1) = S(:, i);
@@ -221,7 +220,7 @@ xs_ = S;
 sols = SS.';
         
 num = size(sols, 2);
-sol = zeros(4, num);
+sol = zeros(4, num);  % all solutions contain the true solution
 ts = zeros(3, num);
 Ls = 1e50 * ones(num, 1);
 q_true = dcm2quat(R0).';
@@ -244,20 +243,23 @@ for i = 1 : num
 end
 [~, idx] = sort(Ls);
 
+% step 3: obtain results
+% GT pose
 q_ = sol(:, idx(1)).'
 q_true_ = q_true.'
 
-
+% Estimated pose
 R_ = quat2dcm(sol(:, idx(1)).');
 t_ = t0;
+
+% Estimated positions of the platform
 plat0 = zeros(3, 6);
 for i = 1 : 6
     plat0(:, i) = R_ * plat00(:, i)  + t_;
 end
 base = base00;
 
-
-
+%% draw results
 subplot(1, 2, 2);
 plot3(base(1, :), base(2, :), base(3, :), 'LineStyle', 'None', 'Marker', '.', 'MarkerSize', 10); hold on
 plot3(base(1, 1 : 6), base(2, 1 : 6), base(3, 1 : 6), 'LineStyle', '-', 'LineWidth', 2, 'Marker', 'None'); hold on

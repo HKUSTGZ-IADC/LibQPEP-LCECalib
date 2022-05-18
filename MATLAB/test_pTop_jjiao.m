@@ -22,7 +22,7 @@
 %                  of point-to-plane registration problem
 
 
-
+%%
 clear all
 close all
 clc
@@ -45,7 +45,7 @@ run(fullfile('sedumi', 'install_sedumi.m'))
 p = genpath('YALMIP');
 addpath(p);
 
-
+%% generate testing data
 m = 10;
 [X, Y] = meshgrid(linspace(-2, 2, m), linspace(-2, 2, m));
 X = reshape(X, 1, []);
@@ -53,7 +53,7 @@ Y = reshape(Y, 1, []);
 Z = sin(X) .* cos(Y) .* cos(X);
 len = m^2;
 
-%% set the ground-truth rotation and translation && generate testing data ???
+%% set the ground-truth rotation and translation
 R0 = orthonormalize(randn(3, 3));
 q0 = dcm2quat(R0).';
 if(q0(1) < 0)
@@ -70,14 +70,24 @@ for i = 1 : len
     b0(i, :) = (R0 * r0(i, :).' + t0 + noise * randn(3, 1)).' + noise * randn(1, 3);
 end
 
+% added by jjiao: add output correspondences
+% b0([1:1:30], :) = b0([30:-1:1], :);
+
 nvr = pcnormals(pointCloud(r0));   % target point cloud
 nvb = pcnormals(pointCloud(b0));   % reference point cloud (provide normal)
 
 J = J_func_pTop(q0, t0, r0, b0, nvr)
 J = J_func_pTop(q0, t0, r0, b0, nvb)
 
-%% run single QPEP (what is the difference?) -> can I individually to run this sentence?
-[W0, Q0, coef_f_q_sym, coef_J_pure, coefs_tq, pinvG] = pTop_WQ_new(r0, b0, nvb);
+T_true = eye(4, 4);
+T_true(1:3, 1:3) = R0;
+T_true(1:3, 4) = t0;
+disp('T_true:')
+disp(num2str(T_true, '%.5f '))
+
+%% run single QPEP
+% [W0, Q0, coef_f_q_sym, coef_J_pure, coefs_tq, pinvG] = pTop_WQ_new(r0, b0, nvb);
+[W0, Q0, D, G, c, coef_f_q_sym, coef_J_pure, coefs_tq, pinvG] = pTop_WQDGc_new(r0, b0, nvb);
 t_funcs = {@t1_pTop_func_new, @t2_pTop_func_new, @t3_pTop_func_new};
 
 W0_ = W0(1 : 3, :);
@@ -88,18 +98,27 @@ W0_(3, :) = W0(3, :) + W0(4, :) + W0(1, :);
 Q0_(1, :) = Q0(1, :) + Q0(2, :) + Q0(3, :);
 Q0_(2, :) = Q0(2, :) + Q0(3, :) + Q0(4, :);
 Q0_(3, :) = Q0(3, :) + Q0(4, :) + Q0(1, :);
-X0
+% X0
 
 [~, ~, X] = QPEP_WQ_grobner(W0, Q0, @solver_WQ_approx, ...
                             @mon_J_pure_pTop_func_new, t_funcs, coef_J_pure, coefs_tq, pinvG, {[1, 2, 3]});
-X_grobner = X
+X_grobner = X;
+disp('X_grobner:')
+disp(num2str(X_grobner, '%.5f '))
 
 [~, ~, X_] = QPEP_lm_single(dcm2quat(X(1 : 3, 1 : 3)).', 100, 5e-2, ...
                           @eq_pTop_func_new, @Jacob_pTop_func_new, t_funcs, ...
                           coef_f_q_sym, coefs_tq, pinvG);
-X_
+q = dcm2quat(X_(1 : 3, 1 : 3)).';
+if(q(1) < 0)
+    q = - q;
+end
 
-%% run multiple QPEP
+T_est = X_;
+disp('T_est:')
+disp(num2str(T_est, '%.5f '))
+
+%% Monte-carlo covariance?
 num = 1000;
 r_noise = 1e-3;
 b_noise = 1e-3;
@@ -220,24 +239,6 @@ r = r0 + r_noise * randn(len, 3);
 b = b0 + b_noise * randn(len, 3);
 n = nvb + n_noise * randn(len, 3);
 
-%% run single QPEP
-[W, Q, D, G, c, coef_f_q_sym, coef_J_pure, coefs_tq, pinvG] = pTop_WQDGc_new(r, b, n);
-R = QPEP_WQ_grobner(W, Q, @solver_WQ_approx, ...
-                    @mon_J_pure_pTop_func_new, t_funcs, coef_J_pure, coefs_tq, pinvG, {[1, 2, 3]});
-R = real(R);
-q = dcm2quat(R).';
-if(q(1) < 0)
-    q = - q;
-end
-    
-[~, ~, X_] = QPEP_lm_single(q, 100, 5e-2, ...
-                          @eq_pTop_func_new, @Jacob_pTop_func_new, t_funcs, ...
-                          coef_f_q_sym, coefs_tq, pinvG);
-q = dcm2quat(X_(1 : 3, 1 : 3)).';
-if(q(1) < 0)
-    q = - q;
-end
-
 %% compute covariance 
 y = y_func_pTop_new(q);
 v = v_func_pTop_new(q);
@@ -281,14 +282,14 @@ for i = 1 : length(scalings)
     Sigma_q_stat
 
     figure(i);
-    plot_q_cov(Sigma_q_stat, XX * scale, qs);
+    plot_q_cov(Sigma_q_stat, XX * scale, qs);  % plot stat_cov, est_cov, est_q at multiple iterations
     if(~ispc())
         set(gcf, 'Unit', 'Centimeters', 'Position', 6 * [5.5 5 5.5 5])
     end
 end
 
 
-          
+
 
 
 

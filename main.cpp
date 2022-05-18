@@ -288,6 +288,7 @@ void test_pTop_WQD_init(const std::string& filename)
         readpTopdata(filename, __R0, __t0, __rr0, __bb0, __nv0);
     }
 }
+
 void test_pTop_WQD(const bool& verbose) {
     std::vector<Eigen::Vector3d> rr0 = __rr0;
     std::vector<Eigen::Vector3d> bb0 = __bb0;
@@ -601,6 +602,7 @@ enum TestMethods {
     METHOD_PNP = 1,
     METHOD_PTOP,
 } method;
+
 int main(int argc,char ** argv) {
 
     double time = 0.0;

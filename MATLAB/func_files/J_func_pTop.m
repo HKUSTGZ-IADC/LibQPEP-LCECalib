@@ -1,3 +1,5 @@
+% r: target point cloud
+% b: reference point cloud
 function J = J_func_pTop(q, t, r, b, nv)
 len = size(r, 1);
 R = q2R(q);

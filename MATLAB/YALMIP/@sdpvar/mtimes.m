@@ -606,7 +606,10 @@ switch 2*X_is_spdvar+Y_is_spdvar
             if isa(Y,'uint8') || isa(Y,'uint16') || isa(Y,'uint32') || isa(Y,'uint64')
                 Y = double(Y);
             end
-            Z.basis = kron(Y.',speye(n_X))*X.basis;
+            if isa(Y,'single')
+                Y = double(Y);
+            end
+            Z.basis = kron(Y.',speye(n_X))*double(X.basis);
         end
         Z.conicinfo = [0 0];
         Z.extra.opname='';
@@ -707,7 +710,8 @@ switch 2*X_is_spdvar+Y_is_spdvar
                     X = double(X);
                 end
                 for i = 1:size(Y.basis,2);
-                    dummy = X*reshape(Y.basis(:,i),Y.dim(1),Y.dim(2));
+%                     dummy = X*reshape(Y.basis(:,i),Y.dim(1),Y.dim(2));
+                    dummy = X * full(reshape(Y.basis(:,i),Y.dim(1),Y.dim(2)));
                     Z.basis = [Z.basis dummy(:)];
                 end
             end
